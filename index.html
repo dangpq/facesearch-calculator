@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>LightJSC Face Search - Dự trù tài nguyên</title>
+  <style>
+    :root{color-scheme:dark;--bg:#08111f;--panel:#101c2e;--line:#263955;--text:#eef5ff;--muted:#91a9c8;--accent:#43a2ff;--good:#43d6a0}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,"Segoe UI",sans-serif}
+    main{max-width:1100px;margin:auto;padding:24px}h1{margin:0 0 6px;font-size:25px}h2{margin:0 0 16px;font-size:18px}
+    p{color:var(--muted);margin:0 0 20px}.layout{display:grid;grid-template-columns:360px 1fr;gap:18px}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}.fields{display:grid;gap:14px}
+    label{display:grid;grid-template-columns:1fr 115px;gap:12px;align-items:center}input{width:100%;padding:10px;border:1px solid var(--line);border-radius:7px;background:#091425;color:var(--text);text-align:right;font-size:15px}
+    .headline{display:grid;grid-template-columns:1fr 1fr;gap:12px}.hero{padding:17px;border:1px solid #285889;border-radius:10px;background:#0a192b}
+    .hero span,.card span{display:block;color:var(--muted);font-size:12px}.hero strong{display:block;margin-top:5px;color:var(--good);font-size:25px}
+    .breakdown{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}.card{padding:12px;border:1px solid var(--line);border-radius:9px}.card strong{display:block;margin-top:4px;color:var(--accent);font-size:17px}
+    table{width:100%;margin-top:18px;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid var(--line);text-align:right}th:first-child,td:first-child{text-align:left}
+    details{margin-top:16px;color:var(--muted)}summary{cursor:pointer;color:var(--accent)}.note{font-size:12px;margin-top:12px}
+    @media(max-width:800px){main{padding:12px}.layout,.headline{grid-template-columns:1fr}.breakdown{grid-template-columns:1fr 1fr}}
+    @media(max-width:480px){.breakdown{grid-template-columns:1fr}label{grid-template-columns:1fr 100px}}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Dự trù tài nguyên Face Search</h1>
+  <p>Chỉ tính dữ liệu do plugin tạo ra và dữ liệu khuôn mặt được đưa vào Nx; không tính dung lượng video camera. Các tổng đã cộng thêm 20% dự phòng.</p>
+  <div class="layout">
+    <section class="panel">
+      <h2>Thông số hệ thống</h2>
+      <div class="fields">
+        <label>Số camera<input id="cameras" type="number" min="0" step="1" value="4"></label>
+        <label>Số model camera<input id="series" type="number" min="1" step="1" value="2"></label>
+        <label>Số người trong danh sách theo dõi<input id="people" type="number" min="0" step="1" value="1000"></label>
+        <label>Số ảnh mỗi người<input id="photos" type="number" min="0" max="10" step="1" value="2"></label>
+        <label>Số khuôn mặt qua mỗi camera/ngày<input id="facesPerDay" type="number" min="0" step="1" value="1000"></label>
+        <label>Thời gian lưu trữ dữ liệu (ngày)<input id="retentionDays" type="number" min="0" step="1" value="30"></label>
+      </div>
+      <p class="note">Mỗi người được có tối đa 10 ảnh. Vì không biết trước ảnh được tải lên hay lấy từ kết quả tìm kiếm, phép tính dùng loại ảnh tốn nhiều dung lượng nhất.</p>
+    </section>
+    <section class="panel">
+      <h2>Kết quả dự trù</h2>
+      <div class="headline">
+        <div class="hero"><span>Tổng dung lượng RAM cần dùng, đã cộng 20%</span><strong id="totalRam">—</strong></div>
+        <div class="hero"><span>Tổng dung lượng ổ cứng cần dùng, đã cộng 20%</span><strong id="totalStorage">—</strong></div>
+      </div>
+      <div class="breakdown">
+        <div class="card"><span>RAM để khởi chạy và duy trì plugin, chưa tính dữ liệu khuôn mặt</span><strong id="baseRam">—</strong></div>
+        <div class="card"><span>RAM để giữ dữ liệu so khớp của danh sách theo dõi</span><strong id="matcherRam">—</strong></div>
+        <div class="card"><span>RAM tạm thời khi nhận và xử lý khuôn mặt từ camera</span><strong id="cameraRam">—</strong></div>
+        <div class="card"><span>Ổ cứng để lưu người và ảnh trong danh sách theo dõi</span><strong id="watchStorage">—</strong></div>
+        <div class="card"><span>Ổ cứng để Nx lưu ảnh và thông tin khuôn mặt trong số ngày đã chọn</span><strong id="nxStorage">—</strong></div>
+      </div>
+      <table>
+        <thead><tr><th>Giá trị đơn vị dự trù</th><th>Dung lượng</th></tr></thead>
+        <tbody>
+          <tr><td>Người mới + 1 ảnh tải lên, 1 model camera</td><td id="newUpload">—</td></tr>
+          <tr><td>Người mới + 1 ảnh từ kết quả tìm kiếm, 1 model camera</td><td id="newSelected">—</td></tr>
+          <tr><td>Thêm 1 ảnh tải lên, 1 model camera</td><td id="addUpload">—</td></tr>
+          <tr><td>Thêm 1 ảnh từ kết quả tìm kiếm, 1 model camera</td><td id="addSelected">—</td></tr>
+          <tr><td>1 khuôn mặt được đưa vào và lưu tại Nx</td><td id="oneNxFace">—</td></tr>
+        </tbody>
+      </table>
+      <details>
+        <summary>Giá trị lớn nhất được dùng trong phép tính</summary>
+        <ul>
+          <li>Ảnh khuôn mặt tốt nhất từ camera: 33.498 B; tổng dữ liệu đưa vào Nx cho mỗi khuôn mặt: 35.588 B.</li>
+          <li>Ảnh tải lên sau khi cắt bằng SCRFD: 3.697 B.</li>
+          <li>Đặc trưng khuôn mặt và dữ liệu đi kèm: ảnh tải lên 1.500 B/model; ảnh từ kết quả tìm kiếm 1.807 B/model.</li>
+          <li>Thông tin mỗi người: 157 B; RAM so khớp: 1,8 KiB/ảnh/model.</li>
+          <li>RAM để khởi chạy và duy trì plugin: 60 MiB; RAM xử lý tạm thời: 220 KiB/camera.</li>
+        </ul>
+      </details>
+      <p class="note">Nx không cung cấp dung lượng chính xác sau khi đóng gói và lập chỉ mục dữ liệu. Công cụ sử dụng giá trị lớn nhất đã đo rồi cộng thêm 20%, không sử dụng giá trị trung bình.</p>
+      <p class="note">Đơn vị: 1 KiB = 1.024 B, 1 MiB = 1.024 KiB, 1 GiB = 1.024 MiB.</p>
+    </section>
+  </div>
+</main>
+<script>
+  const K={uploadJpeg:3697,bestShot:33498,uploadRow:1500,selectedRow:1807,person:157,nxFace:35588,matcherRow:1844,baseRam:60*1024*1024,cameraRam:220*1024,reserve:1.20};
+  const value=id=>Math.max(0,Math.floor(Number(document.getElementById(id).value)||0));
+  const format=bytes=>{const units=['B','KiB','MiB','GiB','TiB'];let v=bytes,u=0;while(v>=1024&&u<units.length-1){v/=1024;u++}return `${v.toLocaleString('vi-VN',{maximumFractionDigits:2})} ${units[u]}`};
+  const show=(id,bytes)=>document.getElementById(id).textContent=format(bytes);
+  const showExact=(id,bytes)=>document.getElementById(id).textContent=`${format(bytes)} (${bytes.toLocaleString('vi-VN')} B)`;
+  function calculate(){
+    const cameras=value('cameras'),series=Math.max(1,value('series')),people=value('people');
+    const photos=Math.min(10,value('photos')),faces=value('facesPerDay'),days=value('retentionDays');
+    const selectedPhoto=K.bestShot+series*K.selectedRow;
+    const watchlist=people*(K.person+photos*selectedPhoto);
+    const matcher=people*photos*series*K.matcherRow;
+    const cameraWorking=cameras*K.cameraRam;
+    const nx=cameras*faces*days*K.nxFace;
+    show('baseRam',K.baseRam);show('matcherRam',matcher);show('cameraRam',cameraWorking);
+    show('watchStorage',watchlist);show('nxStorage',nx);
+    show('totalRam',(K.baseRam+matcher+cameraWorking)*K.reserve);
+    show('totalStorage',(watchlist+nx)*K.reserve);
+    showExact('newUpload',K.person+K.uploadJpeg+K.uploadRow);
+    showExact('newSelected',K.person+K.bestShot+K.selectedRow);
+    showExact('addUpload',K.uploadJpeg+K.uploadRow);
+    showExact('addSelected',K.bestShot+K.selectedRow);
+    showExact('oneNxFace',K.nxFace);
+  }
+  ['cameras','series','people','photos','facesPerDay','retentionDays'].forEach(id=>document.getElementById(id).addEventListener('input',calculate));
+  calculate();
+</script>
+</body>
+</html>
